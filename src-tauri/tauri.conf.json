@@ -38,7 +38,7 @@
         "language": "zh-CN"
       },
       "nsis": {
-        "languages": ["ChineseSimplified"]
+        "languages": ["SimpChinese"]
       }
     }
   }
