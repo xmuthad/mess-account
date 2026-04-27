@@ -31,6 +31,11 @@ async function init() {
 
 function renderMainUI() {
   const app = document.getElementById("app")!;
+  const isMac = navigator.userAgent.includes("Mac");
+  const permissionPath = isMac 
+    ? "系统设置 > 隐私与安全 > 辅助功能" 
+    : "设置 > 轻松使用 > 键盘";
+
   app.innerHTML = `
     <div class="container">
       <div class="header">
@@ -54,7 +59,7 @@ function renderMainUI() {
           <div class="permission-hint" id="permissionHint" style="display:none;">
             <div class="permission-alert">
               <strong>⚠️ 需要辅助功能权限</strong>
-              <p>请前往：系统设置 > 隐私与安全 > 辅助功能</p>
+              <p>请前往：${permissionPath}</p>
               <p>添加并启用此应用</p>
               <button id="openSettingsBtn" class="settings-btn">打开系统设置</button>
             </div>

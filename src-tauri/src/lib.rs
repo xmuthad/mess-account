@@ -636,8 +636,8 @@ mod platform {
     }
 
     pub fn open_accessibility_settings() -> Result<(), String> {
-        Command::new("control")
-            .arg("desktop")
+        Command::new("cmd")
+            .args(&["/C", "start", "ms-settings:easeofaccess-keyboard"])
             .spawn()
             .map_err(|e| format!("无法打开设置: {}", e))?;
         Ok(())
@@ -711,7 +711,7 @@ mod platform {
                 .to_string();
 
             let mut pid: u32 = 0;
-            GetWindowThreadThreadId(hwnd, Some(&mut pid));
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
 
             Ok(WindowInfo {
                 id: hwnd.0 as u64,
