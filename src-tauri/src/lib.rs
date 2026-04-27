@@ -675,7 +675,7 @@ mod platform {
         result: HWND,
     }
 
-    unsafe fn FindWindowByPID(target_pid: u32) -> HWND {
+    unsafe fn find_window_by_pid(target_pid: u32) -> HWND {
         let mut data = FindWindowData {
             target_pid,
             result: HWND(0),
@@ -770,7 +770,7 @@ mod platform {
         eprintln!("Windows auto_fill_password_by_pid 开始执行，pid={}", pid);
 
         unsafe {
-            let hwnd = FindWindowByPID(pid as u32);
+            let hwnd = find_window_by_pid(pid as u32);
             if hwnd.0 == 0 {
                 return Err("找不到窗口".to_string());
             }
@@ -792,37 +792,7 @@ mod platform {
                     },
                 };
 
-                let mut inputs = [input];
-                SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn auto_fill_password(window_id: u64, password: &str) -> Result<(), String> {
-        unsafe {
-            let hwnd = HWND(window_id as isize);
-            
-            let _ = SetForegroundWindow(hwnd);
-            
-            std::thread::sleep(std::time::Duration::from_millis(500));
-
-            for ch in password.chars() {
-                let input = INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    Anonymous: INPUT_0 {
-                        ki: KEYBDINPUT {
-                            wVk: VIRTUAL_KEY(0),
-                            wScan: ch as u16,
-                            dwFlags: KEYEVENTF_UNICODE,
-                            time: 0,
-                            dwExtraInfo: 0,
-                        },
-                    },
-                };
-
-                let mut inputs = [input];
+                let inputs = [input];
                 SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
             }
         }
