@@ -653,7 +653,7 @@ mod platform {
     use super::*;
     use windows::Win32::Foundation::{HWND, LPARAM, BOOL};
     use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible, GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow};
-    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_UNICODE, INPUT_0};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_UNICODE, INPUT_0, VIRTUAL_KEY};
     use std::os::windows::ffi::OsStringExt;
     use std::ffi::OsString;
     use std::process::Command;
@@ -783,7 +783,7 @@ mod platform {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
-                            wVk: 0,
+                            wVk: VIRTUAL_KEY(0),
                             wScan: ch as u16,
                             dwFlags: KEYEVENTF_UNICODE,
                             time: 0,
@@ -813,7 +813,7 @@ mod platform {
                     r#type: INPUT_KEYBOARD,
                     Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
-                            wVk: 0,
+                            wVk: VIRTUAL_KEY(0),
                             wScan: ch as u16,
                             dwFlags: KEYEVENTF_UNICODE,
                             time: 0,
