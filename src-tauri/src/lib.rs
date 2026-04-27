@@ -4,6 +4,17 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
+use base64::{Engine as _, engine::general_purpose};
+
+fn obfuscate(data: &str) -> String {
+    general_purpose::STANDARD.encode(data)
+}
+
+fn deobfuscate(data: &str) -> Result<String, String> {
+    let bytes = general_purpose::STANDARD.decode(data)
+        .map_err(|e| format!("解码失败: {}", e))?;
+    String::from_utf8(bytes).map_err(|e| format!("转换字符串失败: {}", e))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
@@ -44,8 +55,16 @@ impl AppState {
         if file.exists() {
             let content = fs::read_to_string(&file)
                 .map_err(|e| format!("读取文件失败: {}", e))?;
-            let accounts: Vec<Account> = serde_json::from_str(&content)
+            let mut accounts: Vec<Account> = serde_json::from_str(&content)
                 .map_err(|e| format!("解析文件失败: {}", e))?;
+            
+            // 解密密码
+            for acc in accounts.iter_mut() {
+                if let Ok(decrypted) = deobfuscate(&acc.password) {
+                    acc.password = decrypted;
+                }
+            }
+            
             *self.accounts.lock().unwrap() = accounts;
         }
         Ok(())
@@ -53,8 +72,14 @@ impl AppState {
 
     fn save(&self) -> Result<(), String> {
         let file = self.get_data_file();
-        let accounts = self.accounts.lock().unwrap();
-        let content = serde_json::to_string_pretty(&*accounts)
+        let mut accounts = self.accounts.lock().unwrap().clone();
+        
+        // 加密密码
+        for acc in accounts.iter_mut() {
+            acc.password = obfuscate(&acc.password);
+        }
+        
+        let content = serde_json::to_string_pretty(&accounts)
             .map_err(|e| format!("序列化失败: {}", e))?;
         fs::write(file, content)
             .map_err(|e| format!("写入文件失败: {}", e))?;
@@ -627,9 +652,11 @@ end tell
 mod platform {
     use super::*;
     use windows::Win32::Foundation::{HWND, LPARAM, BOOL};
-    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_UNICODE, GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow};
+    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible, GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow};
+    use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_UNICODE, INPUT_0};
     use std::os::windows::ffi::OsStringExt;
     use std::ffi::OsString;
+    use std::process::Command;
 
     pub fn check_accessibility_permission() -> Result<bool, String> {
         Ok(true)
@@ -643,20 +670,31 @@ mod platform {
         Ok(())
     }
 
+    struct FindWindowData {
+        target_pid: u32,
+        result: HWND,
+    }
+
     unsafe fn FindWindowByPID(target_pid: u32) -> HWND {
-        let mut result = HWND::default();
+        let mut data = FindWindowData {
+            target_pid,
+            result: HWND(0),
+        };
 
-        EnumWindows(Some(|hwnd, _| {
-            let mut pid: u32 = 0;
-            GetWindowThreadProcessId(hwnd, Some(&mut pid));
-            if pid == target_pid && IsWindowVisible(hwnd).as_bool() {
-                result = hwnd;
-                return BOOL(0);
-            }
-            BOOL(1)
-        }), None);
+        let _ = EnumWindows(Some(find_window_callback), LPARAM(&mut data as *mut _ as isize));
 
-        result
+        data.result
+    }
+
+    unsafe extern "system" fn find_window_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let data = &mut *(lparam.0 as *mut FindWindowData);
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid == data.target_pid && IsWindowVisible(hwnd).as_bool() {
+            data.result = hwnd;
+            return BOOL(0);
+        }
+        BOOL(1)
     }
 
     pub fn get_windows() -> Result<Vec<WindowInfo>, String> {
@@ -681,6 +719,11 @@ mod platform {
                     .to_string_lossy()
                     .to_string();
 
+                // 过滤掉一些常见的系统窗口
+                if ["Settings", "Microsoft Store", "Program Manager", "Calculators"].contains(&title.as_str()) {
+                    return BOOL(1);
+                }
+
                 let mut pid: u32 = 0;
                 GetWindowThreadProcessId(hwnd, Some(&mut pid));
 
@@ -700,7 +743,7 @@ mod platform {
     pub fn get_foreground_window() -> Result<WindowInfo, String> {
         unsafe {
             let hwnd = GetForegroundWindow();
-            if hwnd.0.is_null() {
+            if hwnd.0 == 0 {
                 return Err("无法获取当前窗口".to_string());
             }
 
@@ -728,17 +771,17 @@ mod platform {
 
         unsafe {
             let hwnd = FindWindowByPID(pid as u32);
-            if hwnd.is_invalid() {
+            if hwnd.0 == 0 {
                 return Err("找不到窗口".to_string());
             }
 
-            SetForegroundWindow(hwnd);
+            let _ = SetForegroundWindow(hwnd);
             std::thread::sleep(std::time::Duration::from_millis(500));
 
             for ch in password.chars() {
                 let input = INPUT {
                     r#type: INPUT_KEYBOARD,
-                    Anonymous: windows::Win32::UI::WindowsAndMessaging::INPUT_0 {
+                    Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
                             wVk: 0,
                             wScan: ch as u16,
@@ -750,7 +793,7 @@ mod platform {
                 };
 
                 let mut inputs = [input];
-                SendInput(&mut inputs, std::mem::size_of::<INPUT>() as i32);
+                SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
             }
         }
 
@@ -759,16 +802,16 @@ mod platform {
 
     pub fn auto_fill_password(window_id: u64, password: &str) -> Result<(), String> {
         unsafe {
-            let hwnd = HWND(window_id as *mut std::ffi::c_void);
+            let hwnd = HWND(window_id as isize);
             
-            SetForegroundWindow(hwnd);
+            let _ = SetForegroundWindow(hwnd);
             
             std::thread::sleep(std::time::Duration::from_millis(500));
 
             for ch in password.chars() {
                 let input = INPUT {
                     r#type: INPUT_KEYBOARD,
-                    Anonymous: windows::Win32::UI::WindowsAndMessaging::INPUT_0 {
+                    Anonymous: INPUT_0 {
                         ki: KEYBDINPUT {
                             wVk: 0,
                             wScan: ch as u16,
@@ -780,7 +823,7 @@ mod platform {
                 };
 
                 let mut inputs = [input];
-                SendInput(&mut inputs, std::mem::size_of::<INPUT>() as i32);
+                SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
             }
         }
 

@@ -47,8 +47,14 @@ function renderMainUI() {
           <h2>账户列表</h2>
           <div class="add-form">
             <input type="text" id="accName" placeholder="账户名称" maxlength="50" autocomplete="off" />
-            <input type="password" id="accPassword" placeholder="密码" maxlength="100" autocomplete="new-password" />
+            <div class="password-input-container">
+              <input type="password" id="accPassword" placeholder="密码" maxlength="100" autocomplete="new-password" />
+              <button id="togglePasswordBtn" class="toggle-password-btn" title="显示/隐藏密码">👁️</button>
+            </div>
             <button id="addBtn">添加</button>
+          </div>
+          <div class="search-box">
+            <input type="text" id="accountSearch" placeholder="🔍 搜索账户..." />
           </div>
           <div id="accountList" class="list"></div>
         </div>
@@ -83,6 +89,8 @@ function renderMainUI() {
   const refreshBtn = document.getElementById("refreshBtn");
   const autoFillBtn = document.getElementById("autoFillBtn");
   const openSettingsBtn = document.getElementById("openSettingsBtn");
+  const togglePasswordBtn = document.getElementById("togglePasswordBtn");
+  const accountSearch = document.getElementById("accountSearch") as HTMLInputElement;
 
   addBtn?.addEventListener("click", () => {
     console.log("添加按钮被点击");
@@ -103,6 +111,19 @@ function renderMainUI() {
   });
   openSettingsBtn?.addEventListener("click", () => {
     openAccessibilitySettings();
+  });
+  togglePasswordBtn?.addEventListener("click", () => {
+    const pwdInput = document.getElementById("accPassword") as HTMLInputElement;
+    if (pwdInput.type === "password") {
+      pwdInput.type = "text";
+      togglePasswordBtn.textContent = "🔒";
+    } else {
+      pwdInput.type = "password";
+      togglePasswordBtn.textContent = "👁️";
+    }
+  });
+  accountSearch?.addEventListener("input", () => {
+    renderAccountList(accountSearch.value);
   });
 }
 
@@ -135,14 +156,19 @@ async function loadAccounts() {
   }
 }
 
-function renderAccountList() {
+function renderAccountList(filter: string = "") {
   const list = document.getElementById("accountList")!;
-  if (accounts.length === 0) {
-    list.innerHTML = '<div class="empty">暂无账户</div>';
+  
+  const filteredAccounts = accounts.filter(acc => 
+    acc.name.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  if (filteredAccounts.length === 0) {
+    list.innerHTML = `<div class="empty">${filter ? '未找到匹配账户' : '暂无账户'}</div>`;
     return;
   }
 
-  list.innerHTML = accounts.map(acc => `
+  list.innerHTML = filteredAccounts.map(acc => `
     <div class="item ${acc.id === selectedAccountId ? 'selected' : ''}" data-id="${acc.id}">
       <span class="name">${escapeHtml(acc.name)}</span>
       <button class="delete-btn ${pendingDeleteAccountId === acc.id ? 'confirming' : ''}" data-id="${acc.id}">
@@ -237,6 +263,12 @@ async function deleteAccount(id: string) {
 }
 
 async function loadWindows() {
+  const refreshBtn = document.getElementById("refreshBtn") as HTMLButtonElement;
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = "🔄 正在刷新...";
+  }
+
   showStatus("正在获取窗口列表...", "info");
   try {
     windows = await invoke("get_windows");
@@ -244,6 +276,11 @@ async function loadWindows() {
     showStatus(`找到 ${windows.length} 个窗口`, "success");
   } catch (e: any) {
     showStatus(e, "error");
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = "🔄 刷新窗口";
+    }
   }
 }
 

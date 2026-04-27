@@ -175,6 +175,47 @@ body {
   margin-bottom: 12px;
 }
 
+.password-input-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.password-input-container input {
+  width: 100%;
+  padding-right: 32px !important;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.toggle-password-btn:hover {
+  opacity: 1;
+}
+
+.search-box {
+  margin-bottom: 12px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 .add-form input {
   padding: 8px 12px;
   border: 1px solid #ddd;
